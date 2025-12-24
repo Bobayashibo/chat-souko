@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>あなたのゲーム内チャット倉庫 - Ver 1.0</title>
+
+<link rel="icon" href="favicon.ico" type="image/x-icon">
+    
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-icon-180x180.png">
+
+    <link rel="icon" href="favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #2b323b; 
+            --bg-gradient: radial-gradient(circle at 50% 0%, #3e4956 0%, #2b323b 100%);
+            --card-bg: #1e2329;
+            --accent-orange: #ff9d00;
+            --ow-orange: #f99e1a;
+            --text-main: #ffffff;
+            --text-sub: #b0bac5;
+            --handle-color: #4a5462;
+            --header-bg: rgba(255, 255, 255, 0.06);
+            --font-main: 'Montserrat', 'Segoe UI', 'Roboto', sans-serif;
+            --font-jp: 'Noto Sans JP', sans-serif;
+            --col-height: 580px;
+
+            --danger-red-glow: #f04747;
+            --danger-red-border: #751a1a;
+            --danger-red-bg: rgba(40, 15, 15, 0.8);
+            --restore-blue: #47a0f0;
+        }
+
+        html, body { height: 100%; margin: 0; }
+        
+        body {
+            background-color: var(--bg-color);
+            background-image: var(--bg-gradient);
+            color: var(--text-main);
+            font-family: var(--font-main), var(--font-jp);
+            padding: 10px;
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh; overflow-x: hidden;
+            background-attachment: fixed;
+            box-sizing: border-box;
+        }
+
+        .main-content {
+            flex: 1 0 auto;
+            width: 100%;
+            max-width: 1400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header { 
+            position: relative; text-align: center; margin-bottom: 15px; 
+            border-bottom: 3px solid var(--accent-orange); 
+            padding-bottom: 15px; 
+            width: 100%; max-width: 1000px;
+        }
+        
+        h1 { font-size: 1.8rem; letter-spacing: 2px; margin: 0; color: #fff; font-weight: 900; text-shadow: 0 0 15px rgba(255,157,0,0.3); }
+        .subtitle { font-size: 0.8rem; color: var(--accent-orange); font-weight: 800; letter-spacing: 1px; margin-top: 4px; }
+
+        .top-right-controls {
+            position: absolute; right: 0; top: 0;
+            display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+        }
+
+        .history-controls { display: flex; gap: 4px; }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-sub); padding: 5px 12px; border-radius: 4px;
+            cursor: pointer; font-size: 0.7rem; font-weight: bold; transition: all 0.2s;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .control-btn:hover:not(.disabled) { background: var(--accent-orange); color: #000; border-color: var(--accent-orange); }
+        
+        .control-btn.disabled {
+            opacity: 0.35;
+            cursor: default;
+            pointer-events: none;
+            filter: grayscale(1);
+        }
+
+        .btn-danger { 
+            color: var(--danger-red-glow); 
+            border: 1.5px solid var(--danger-red-border); 
+            background: var(--danger-red-bg); 
+            text-shadow: 0 0 5px var(--danger-red-glow);
+            box-shadow: inset 0 0 5px rgba(240, 71, 71, 0.2);
+        }
+        .btn-danger:hover { background: #4a1010 !important; color: #ff6e6e !important; border-color: #f04747 !important; }
+
+        .btn-restore { color: var(--restore-blue); border: 1px solid rgba(71, 160, 240, 0.4); }
+
+        /* 復元モーダル */
+        #restore-modal {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.85); z-index: 10000;
+            justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: #1e2329; width: 95%; max-width: 500px;
+            border-radius: 8px; border: 1px solid var(--accent-orange);
+            display: flex; flex-direction: column; height: 80vh; position: relative;
+        }
+        .modal-header {
+            padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-title { font-weight: 900; color: var(--accent-orange); font-size: 1rem; }
+        .modal-close { cursor: pointer; font-size: 1.5rem; color: var(--text-sub); }
+        
+        .modal-notice {
+            background: rgba(255, 255, 255, 0.07); 
+            padding: 14px 18px; 
+            border-bottom: 1px solid rgba(255,157,0,0.2);
+            font-size: 0.75rem; color: var(--text-sub); line-height: 1.6;
+        }
+        .modal-notice b { color: #fff; }
+
+        .modal-body-container {
+            flex: 1; overflow: hidden; position: relative;
+        }
+
+        /* 時系列インジケーター（重なり修正） */
+        .time-axis {
+            position: absolute; left: 16px; top: 35px; bottom: 35px;
+            width: 2px; background: linear-gradient(to bottom, var(--restore-blue), rgba(255,255,255,0.1));
+            border-radius: 2px; pointer-events: none; z-index: 1;
+        }
+        .time-label {
+            position: absolute; left: 8px; font-size: 0.8rem; font-weight: 900;
+            writing-mode: horizontal-tb; pointer-events: none; z-index: 2;
+            background: #1e2329; padding: 2px 0; width: 18px; text-align: center;
+        }
+        .label-new { top: 8px; color: var(--restore-blue); }
+        .label-old { bottom: 8px; color: var(--text-sub); opacity: 0.5; }
+
+        .modal-body { 
+            height: 100%; overflow-y: auto; padding: 15px 15px 15px 45px; 
+        }
+
+        .history-item {
+            background: rgba(255,255,255,0.05); padding: 12px; margin-bottom: 10px;
+            border-radius: 4px; cursor: pointer; transition: all 0.2s;
+            display: flex; justify-content: space-between; align-items: center;
+            border-left: 3px solid transparent;
+        }
+        .history-item:hover { 
+            background: rgba(71, 160, 240, 0.15); 
+            transform: translateX(5px);
+            border-left-color: var(--restore-blue);
+        }
+        .history-info { display: flex; flex-direction: column; gap: 4px; }
+        .history-action { font-size: 0.85rem; font-weight: 700; color: #fff; }
+        .history-time { font-size: 0.7rem; color: var(--text-sub); }
+        .history-count { font-size: 0.7rem; color: var(--accent-orange); }
+
+        .card-edit-input, .title-input { padding: 8px !important; }
+
+        .guide-container { max-width: 1000px; width: 100%; background: rgba(0,0,0,0.25); border-radius: 4px; padding: 12px; margin-bottom: 20px; display: flex; justify-content: center; font-size: 0.8rem; color: var(--text-sub); border: 1px solid rgba(255,255,255,0.1); }
+        .guide-steps { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        .guide-step { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; font-weight: 700; }
+        .step-num { background: var(--accent-orange); color: #000; font-weight: 900; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; flex-shrink: 0; }
+        .columns-wrapper { display: flex; flex-direction: row; gap: 15px; width: 100%; justify-content: center; align-items: flex-start; margin-bottom: 40px; }
+        .category-column { flex: 1; min-width: 280px; background: rgba(0, 0, 0, 0.2); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; max-height: var(--col-height); border: 1px solid rgba(255,255,255,0.05); }
+        .phrase-list { flex: 1; overflow-y: auto; overflow-x: hidden; padding-right: 4px; display: flex; flex-direction: column; gap: 10px; min-height: 80px; }
+        .category-header { display: flex; justify-content: space-between; align-items: center; background: var(--header-bg); padding: 10px; border-radius: 4px; margin-bottom: 12px; position: relative; border-left: 4px solid var(--accent-orange); }
+        .header-left { display: flex; align-items: center; justify-content: center; gap: 8px; flex: 1; }
+        .title-display { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 900; }
+        .title-edit-icon { font-size: 0.9rem; color: var(--accent-orange); }
+        .category-title-text { font-size: 0.85rem; color: #fff; letter-spacing: 0.5px; text-transform: uppercase; }
+        .title-input { display: none; background: #000; color: #fff; border: 1px solid var(--accent-orange); font-size: 0.9rem; font-weight: 900; width: 80%; outline: none; border-radius: 2px; text-align: center; }
+        .header-actions { position: absolute; right: 6px; display: flex; align-items: center; gap: 4px; }
+        .action-icon-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; font-size: 1.1rem; padding: 4px; display: flex; align-items: center; justify-content: center; }
+        .phrase-card { background: var(--card-bg); border: 1px solid rgba(255, 255, 255, 0.08); border-bottom: 2px solid rgba(255, 157, 0, 0.3); border-radius: 4px; display: flex; align-items: center; position: relative; user-select: none; transition: transform 0.1s ease, background 0.1s ease; flex-shrink: 0; }
+        .drag-handle { display: flex; align-items: center; justify-content: center; width: 30px; align-self: stretch; background: rgba(0, 0, 0, 0.3); color: var(--handle-color); cursor: grab; font-size: 1.2rem; }
+        .card-content { flex: 1; padding: 14px 12px; cursor: pointer; position: relative; display: flex; align-items: center; padding-right: 60px; }
+        .japanese { display: block; font-size: 0.85rem; font-weight: 700; color: #fff; width: 100%; pointer-events: none; word-break: break-all; }
+        .card-edit-input { display: none; background: #000; color: #fff; border: 1px solid var(--accent-orange); width: 95%; font-size: 0.85rem; font-family: var(--font-jp); border-radius: 2px; outline: none; }
+        .card-tools { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); display: flex; gap: 4px; }
+        .tool-btn { background: rgba(0,0,0,0.5); border: none; color: var(--text-sub); font-size: 0.75rem; padding: 5px 7px; border-radius: 3px; cursor: pointer; }
+        .copy-overlay { position: absolute; inset: 0 0 0 30px; background: var(--accent-orange); color: #000; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.1s; font-weight: 900; font-size: 0.8rem; z-index: 10; }
+        .phrase-card.copied .copy-overlay { opacity: 1; }
+        .dragging { opacity: 0.6; z-index: 1000; position: fixed !important; pointer-events: none; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .placeholder { height: 48px; border: 1px dashed var(--accent-orange); border-radius: 4px; background: rgba(255, 157, 0, 0.05); }
+        footer { flex-shrink: 0; margin-top: auto; padding: 25px 20px; border-top: 1px solid rgba(255, 255, 255, 0.1); width: 100%; max-width: 1000px; display: flex; justify-content: space-between; align-items: center; }
+        .disclaimer { font-size: 0.7rem; color: var(--text-sub); line-height: 1.6; max-width: 65%; }
+        
+        .footer-url { color: var(--ow-orange) !important; font-size: 0.75rem; text-decoration: none; font-weight: bold; }
+        .footer-url:hover { text-decoration: underline; }
+
+        @media (max-width: 800px) { 
+            .columns-wrapper { flex-direction: column; align-items: center; } 
+            .category-column { width: 95%; min-width: 95%; max-height: 450px; }
+            .top-right-controls { position: static; align-items: center; margin: 10px 0; }
+            footer { flex-direction: column; gap: 20px; text-align: center; }
+        }
+    </style>
+</head>
+<body id="app-body">
+
+<div class="main-content">
+    <header>
+        <h1>あなたのゲーム内チャット倉庫</h1>
+        <div class="subtitle">⠿ を掴んで並び替え | ワンクリックでコピー</div>
+        <div class="top-right-controls">
+            <div class="history-controls">
+                <button id="undo-btn" class="control-btn disabled" onclick="undoAction()">↩ 戻す</button>
+                <button id="redo-btn" class="control-btn disabled" onclick="redoAction()">進む ↪</button>
+            </div>
+            <div style="display:flex; gap:6px;">
+                <button class="control-btn btn-restore" onclick="openRestoreModal()">🕒 履歴から復元</button>
+                <button class="control-btn btn-danger" onclick="clearAllCards()">🗑 すべてのカードを削除</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="guide-container">
+        <div class="guide-steps">
+            <div class="guide-step"><span class="step-num">1</span> 使いたい文をクリックしてコピー</div>
+            <div class="guide-step"><span class="step-num">2</span> ゲームのチャット欄を開く</div>
+            <div class="guide-step"><span class="step-num">3</span> Ctrl + V で貼り付けて送信！</div>
+        </div>
+    </div>
+
+    <div class="columns-wrapper" id="columns-container"></div>
+</div>
+
+<div id="restore-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">履歴から復元</div>
+            <div class="modal-close" onclick="closeRestoreModal()">×</div>
+        </div>
+        <div class="modal-notice">
+            操作ごとに<b>最大20件</b>まで自動保存されます。<br>
+            ブラウザを更新・終了しても履歴は残り続けるため、誤操作の際もここから復元可能です。
+        </div>
+        <div class="modal-body-container">
+            <div class="time-axis"></div>
+            <span class="time-label label-new">新</span>
+            <span class="time-label label-old">古</span>
+            <div class="modal-body" id="history-body">
+                <div id="history-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <div class="disclaimer">
+        チャットでの発言はすべて自己責任で行ってください。<br>
+        本ツールを使用して発生したトラブルやアカウント制限等について、当サイトは一切の責任を負いません。
+    </div>
+    <div class="footer-link-box" style="color:var(--text-sub); font-size:0.75rem;">
+        姉妹サイト：<a href="https://bobayashibo.github.io/ow-ez-chat/" target="_blank" class="footer-url">OW多言語チャット発行ツール</a>
+    </div>
+</footer>
+
+<script>
+    const STORAGE_KEY = 'chat_vault_v2_12_data'; 
+    const BACKUP_KEY = 'chat_vault_v2_12_backups'; 
+
+    let undoStack = [];
+    let redoStack = [];
+
+    const categories = [
+        { id: 'col-greet', title: '挨拶・コミュニケーション' },
+        { id: 'col-strat', title: '戦略・指示' },
+        { id: 'col-enemy', title: '敵の情報' },
+        { id: 'col-team', title: '味方の情報' }
+    ];
+
+    const defaultPhrases = {
+        g1: { jp: "よろしくお願いします", col: "col-greet" },
+        g2: { jp: "gg", col: "col-greet" },
+        s1: { jp: "ウルト先に使います", col: "col-strat" },
+        s2: { jp: "Aを攻める", col: "col-strat" },
+        e1: { jp: "トップに敵寄ってる", col: "col-enemy" },
+        e2: { jp: "あかん、敵にカベイラいる", col: "col-enemy" },
+        t1: { jp: "ウルトがあります", col: "col-team" },
+        t2: { jp: "私にナノブーストをつけてください", col: "col-team" }
+    };
+
+    let currentPhrases = JSON.parse(JSON.stringify(defaultPhrases));
+    let isDragging = false;
+
+    function initUI() {
+        const container = document.getElementById('columns-container');
+        container.innerHTML = '';
+        categories.forEach(cat => {
+            const col = document.createElement('div');
+            col.className = 'category-column';
+            col.id = cat.id;
+            col.innerHTML = `
+                <div class="category-header">
+                    <div class="header-left">
+                        <div class="title-display" id="display-${cat.id}" onclick="startEditTitle('${cat.id}')">
+                            <span class="title-edit-icon">✎</span>
+                            <span class="category-title-text" id="text-${cat.id}">${cat.title}</span>
+                        </div>
+                        <input type="text" class="title-input" id="input-${cat.id}" value="${cat.title}" onblur="stopEditTitle('${cat.id}')" onkeydown="if(event.key==='Enter')this.blur()">
+                    </div>
+                    <div class="header-actions">
+                        <button class="action-icon-btn" onclick="addNewCard('${cat.id}')"><span>＋</span></button>
+                    </div>
+                </div>
+                <div class="phrase-list" id="list-${cat.id}"></div>
+            `;
+            container.appendChild(col);
+        });
+
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            applyState(saved, false); 
+        } else {
+            Object.keys(currentPhrases).forEach(id => {
+                createCardElement(id, currentPhrases[id].jp, currentPhrases[id].col);
+            });
+        }
+        updateHistoryButtons();
+    }
+
+    function createCardElement(id, text, colId) {
+        const list = document.getElementById('list-' + colId);
+        if(!list) return;
+        const card = document.createElement('div');
+        card.className = 'phrase-card';
+        card.dataset.id = id;
+        card.innerHTML = `
+            <div class="drag-handle">⠿</div>
+            <div class="card-content" onclick="handleCardClick(event, this, '${id}')">
+                <span class="japanese" id="jp-text-${id}">${text}</span>
+                <input type="text" class="card-edit-input" id="edit-input-${id}" value="${text}" onblur="stopEditCard('${id}')" onkeydown="if(event.key==='Enter')this.blur()">
+                <div class="card-tools">
+                    <button class="tool-btn" onclick="startEditCard(event, '${id}')">✎</button>
+                    <button class="tool-btn del-btn" onclick="deleteCard(event, '${id}')">🗑</button>
+                </div>
+            </div>
+            <div class="copy-overlay">COPIED!</div>
+        `;
+        list.appendChild(card);
+    }
+
+    function captureState(actionName = "自動保存") {
+        const state = { 
+            phrases: JSON.parse(JSON.stringify(currentPhrases)), 
+            columns: {}, 
+            titles: {},
+            action: actionName,
+            timestamp: new Date().toLocaleString('ja-JP', { hour:'2-digit', minute:'2-digit', second:'2-digit' })
+        };
+        document.querySelectorAll('.category-column').forEach(col => {
+            const list = col.querySelector('.phrase-list');
+            state.columns[col.id] = [...list.querySelectorAll('.phrase-card')].map(c => c.dataset.id);
+            state.titles[col.id] = document.getElementById('text-' + col.id).innerText;
+        });
+        return JSON.stringify(state);
+    }
+
+    function pushHistory(actionName) {
+        const currentState = captureState(actionName);
+        undoStack.push(currentState);
+        redoStack = []; 
+        if (undoStack.length > 30) undoStack.shift();
+        saveBackup(currentState);
+        updateHistoryButtons();
+    }
+
+    function saveBackup(stateStr) {
+        let backups = JSON.parse(localStorage.getItem(BACKUP_KEY) || "[]");
+        backups.unshift(stateStr);
+        if (backups.length > 20) backups.pop();
+        localStorage.setItem(BACKUP_KEY, JSON.stringify(backups));
+    }
+
+    function openRestoreModal() {
+        let backups = JSON.parse(localStorage.getItem(BACKUP_KEY) || "[]");
+        const listEl = document.getElementById('history-list');
+        listEl.innerHTML = '';
+        if (backups.length === 0) {
+            listEl.innerHTML = '<p style="text-align:center; color:var(--text-sub); margin-top:20px;">履歴がまだありません</p>';
+        } else {
+            backups.forEach((b) => {
+                const data = JSON.parse(b);
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <div class="history-info">
+                        <span class="history-action">${data.action || "保存データ"}</span>
+                        <span class="history-time">${data.timestamp}</span>
+                    </div>
+                    <span class="history-count">${Object.keys(data.phrases).length} 枚</span>
+                `;
+                item.onclick = () => {
+                    pushHistory("復旧前のデータ");
+                    applyState(b);
+                    closeRestoreModal();
+                };
+                listEl.appendChild(item);
+            });
+        }
+        document.getElementById('restore-modal').style.display = 'flex';
+    }
+
+    function closeRestoreModal() { document.getElementById('restore-modal').style.display = 'none'; }
+
+    function undoAction() {
+        if (undoStack.length === 0) return;
+        const current = captureState("進む"); // 「戻す」操作によってredoStackに積まれるのは「進む」ためのデータ
+        redoStack.push(current);
+        saveBackup(current); // リストに「進む」を表示させるためにバックアップ保存
+        applyState(undoStack.pop());
+    }
+
+    function redoAction() {
+        if (redoStack.length === 0) return;
+        const current = captureState("戻す"); // 「進む」操作によってundoStackに積まれるのは「戻す」ためのデータ
+        undoStack.push(current);
+        saveBackup(current); // リストに「戻す」を表示させるためにバックアップ保存
+        applyState(redoStack.pop());
+    }
+
+    function applyState(stateStr, shouldSave = true) {
+        const state = JSON.parse(stateStr);
+        currentPhrases = state.phrases;
+        categories.forEach(cat => {
+            const textEl = document.getElementById('text-' + cat.id);
+            if (textEl && state.titles[cat.id]) textEl.innerText = state.titles[cat.id];
+            const list = document.getElementById('list-' + cat.id);
+            list.innerHTML = '';
+            if (state.columns[cat.id]) {
+                state.columns[cat.id].forEach(cardId => {
+                    if (currentPhrases[cardId]) createCardElement(cardId, currentPhrases[cardId].jp, cat.id);
+                });
+            }
+        });
+        if (shouldSave) localStorage.setItem(STORAGE_KEY, stateStr);
+        updateHistoryButtons();
+    }
+
+    function updateHistoryButtons() {
+        document.getElementById('undo-btn').classList.toggle('disabled', undoStack.length === 0);
+        document.getElementById('redo-btn').classList.toggle('disabled', redoStack.length === 0);
+    }
+
+    function startEditTitle(id) {
+        document.getElementById('display-' + id).style.display = 'none';
+        const input = document.getElementById('input-' + id);
+        input.style.display = 'block'; input.focus();
+    }
+    function stopEditTitle(id) {
+        const input = document.getElementById('input-' + id);
+        const oldTitle = document.getElementById('text-' + id).innerText;
+        if (input.value !== oldTitle) {
+            pushHistory("タイトル:「" + input.value + "」に変更");
+            document.getElementById('text-' + id).innerText = input.value;
+            saveToStorage();
+        }
+        input.style.display = 'none';
+        document.getElementById('display-' + id).style.display = 'flex';
+    }
+
+    function addNewCard(colId) {
+        pushHistory("カードを追加");
+        const newId = 'custom-' + Date.now();
+        currentPhrases[newId] = { jp: "新しい定型文", col: colId };
+        createCardElement(newId, currentPhrases[newId].jp, colId);
+        saveToStorage();
+        startEditCard(null, newId);
+    }
+
+    function deleteCard(event, id) {
+        event.stopPropagation();
+        pushHistory("「" + currentPhrases[id].jp + "」を削除");
+        const el = document.querySelector(`[data-id="${id}"]`);
+        if(el) el.remove();
+        delete currentPhrases[id];
+        saveToStorage();
+    }
+
+    function clearAllCards() {
+        if (!confirm("すべてのカードを削除しますか？")) return;
+        pushHistory("全カードを削除");
+        document.querySelectorAll('.phrase-list').forEach(list => list.innerHTML = '');
+        currentPhrases = {};
+        saveToStorage();
+    }
+
+    function startEditCard(event, id) {
+        if (event) event.stopPropagation();
+        document.getElementById('jp-text-' + id).style.display = 'none';
+        const input = document.getElementById('edit-input-' + id);
+        input.style.display = 'block'; input.focus(); input.select();
+    }
+    function stopEditCard(id) {
+        const display = document.getElementById('jp-text-' + id);
+        const input = document.getElementById('edit-input-' + id);
+        if (input.value.trim() !== "" && input.value !== currentPhrases[id].jp) {
+            pushHistory("編集:「" + input.value + "」");
+            display.innerText = input.value;
+            currentPhrases[id].jp = input.value;
+            saveToStorage();
+        }
+        display.style.display = 'block'; input.style.display = 'none';
+    }
+
+    function handleCardClick(event, el, id) {
+        if (isDragging || document.getElementById('edit-input-' + id).style.display === 'block') return;
+        navigator.clipboard.writeText(currentPhrases[id].jp).then(() => {
+            const cardEl = el.parentElement;
+            cardEl.classList.add('copied');
+            setTimeout(() => cardEl.classList.remove('copied'), 600);
+        });
+    }
+
+    function saveToStorage() { localStorage.setItem(STORAGE_KEY, captureState("自動保存")); }
+
+    window.addEventListener('DOMContentLoaded', initUI);
+
+    document.addEventListener('mousedown', e => {
+        const handle = e.target.closest('.drag-handle');
+        if (!handle) return;
+        isDragging = true;
+        const draggingElement = handle.closest('.phrase-card');
+        const rect = draggingElement.getBoundingClientRect();
+        pushHistory("カードの並び替え");
+        const placeholder = document.createElement('div');
+        placeholder.className = 'placeholder';
+        placeholder.style.height = rect.height + 'px';
+        const offsetX = e.clientX - rect.left;
+        const offsetY = e.clientY - rect.top;
+        draggingElement.classList.add('dragging');
+        draggingElement.style.width = rect.width + 'px';
+        draggingElement.parentNode.insertBefore(placeholder, draggingElement);
+        const move = ev => {
+            draggingElement.style.left = (ev.clientX - offsetX) + 'px';
+            draggingElement.style.top = (ev.clientY - offsetY) + 'px';
+            const targetList = document.elementsFromPoint(ev.clientX, ev.clientY).find(el => el.classList && el.classList.contains('phrase-list'));
+            if (targetList) {
+                const afterElement = [...targetList.querySelectorAll('.phrase-card:not(.dragging)')].find(card => {
+                    const cardRect = card.getBoundingClientRect();
+                    return ev.clientY < cardRect.top + cardRect.height / 2;
+                });
+                targetList.insertBefore(placeholder, afterElement || null);
+            }
+        };
+        const up = () => {
+            const finalParent = placeholder.parentNode;
+            finalParent.insertBefore(draggingElement, placeholder);
+            const cardId = draggingElement.dataset.id;
+            const newColId = finalParent.closest('.category-column').id;
+            currentPhrases[cardId].col = newColId;
+            draggingElement.classList.remove('dragging');
+            Object.assign(draggingElement.style, { position: '', width: '', left: '', top: '' });
+            placeholder.remove();
+            saveToStorage();
+            setTimeout(() => { isDragging = false; }, 50);
+            document.removeEventListener('mousemove', move);
+            document.removeEventListener('mouseup', up);
+        };
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', up);
+    });
+</script>
+</body>
+</html>
